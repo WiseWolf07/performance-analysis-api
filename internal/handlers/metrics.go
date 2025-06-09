@@ -4,12 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"performance-analysis-api/internal/metrics"
 )
 
 func GetSystemMetrics(res http.ResponseWriter, req *http.Request) {
+	startTime := time.Now()
+
 	systemMetrics := metrics.GetSystemMetrics()
+
+	latency := time.Since(startTime)
+	systemMetrics.LatencyMs = float64(latency.Nanoseconds()) / float64(time.Millisecond)
 
 	res.Header().Set("Content-Type", "application/json")
 

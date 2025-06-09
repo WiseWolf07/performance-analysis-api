@@ -10,7 +10,7 @@ import (
 func GetSystemMemoryUsage() (*Mem, error) {
 	virtualMemory, err := mem.VirtualMemory()
 	if err != nil {
-		return nil, fmt.Errorf("Error al obtener la memoria vitual: %w", err)
+		return nil, fmt.Errorf("error al obtener la memoria vitual: %w", err)
 	}
 
 	memInfo := &Mem{

@@ -10,7 +10,7 @@ import (
 func GetCPUUsage() ([]float64, error) {
 	cpuPercent, err := cpu.Percent(time.Second, true)
 	if err != nil {
-		return nil, fmt.Errorf("Error al obtener el uso de CPU: %w", err)
+		return nil, fmt.Errorf("error al obtener el uso de CPU: %w", err)
 	}
 	return cpuPercent, nil
 }
