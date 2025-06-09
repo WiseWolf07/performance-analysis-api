@@ -10,11 +10,11 @@ import (
 
 func main() {
 
-	go func() {
-		fmt.Println("pprof disponible en http://localhost:6060/debug/pprof/")
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
-
+	// func () {
+	// 	fmt.Println("pprof disponible en http://localhost:6060/debug/pprof/")
+	// 	log.Println(http.ListenAndServe("localhost:6060", nil))
+	// }()
+	// profiles.Profiler()
 	r := router.NewRouter()
 
 	fmt.Println("Servidor escuchando en el puerto 8080...")
