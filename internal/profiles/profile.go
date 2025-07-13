@@ -1,77 +1,37 @@
-// profile and cpu files are binary files that must be analyzed with "go tool pprof file_path"
 package profiles
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
+	"runtime"
 	"runtime/pprof"
 	"time"
 
 	"github.com/gorilla/mux"
 )
 
-// func HeapProfileHandler(w http.ResponseWriter, r *http.Request) {
-// 	var buf bytes.Buffer
-// 	if err := pprof.Lookup("allocs").WriteTo(&buf, 1); err != nil {
-// 		http.Error(w, "Error obteniendo perfil", http.StatusInternalServerError)
-// 		return
-// 	}
-
-// 	result := map[string]string{
-// 		"profile": buf.String(),
-// 	}
-
-//		w.Header().Set("Content-Type", "application/json")
-//		json.NewEncoder(w).Encode(result)
-//	}
-// func ProfileHandler(w http.ResponseWriter, r *http.Request) {
-// 	vars := mux.Vars(r)
-// 	profileName := vars["type"]
-
-// 	p := pprof.Lookup(profileName)
-// 	if p == nil {
-// 		http.Error(w, "Perfil no encontrado", http.StatusNotFound)
-// 		return
-// 	}
-
-// 	var buf bytes.Buffer
-// 	_ = p.WriteTo(&buf, 1)
-
-// 	json.NewEncoder(w).Encode(map[string]string{
-// 		"profile": buf.String(),
-// 	})
-// }
-
 func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	profileName := vars["type"]
 
-	// CPU and profile requires a special treatment
-	//CPU
-	if profileName == "cpu" {
+	switch profileName {
+	case "cpu":
 		var buf bytes.Buffer
-
-		// Begin the profile
 		if err := pprof.StartCPUProfile(&buf); err != nil {
 			http.Error(w, "No se pudo iniciar el perfil CPU", http.StatusInternalServerError)
 			return
 		}
 
-		// Profiling 10 seconds
 		time.Sleep(10 * time.Second)
-
-		// stop profiling
 		pprof.StopCPUProfile()
 
-		// download binary file cpu.pprof
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Disposition", `attachment; filename="cpu.pprof"`)
 		w.Write(buf.Bytes())
 		return
-	}
 
-	//Profile
-	if profileName == "profile" {
+	case "profile":
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Disposition", "attachment; filename=prof.pprof")
 
@@ -79,9 +39,33 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(10 * time.Second)
 		pprof.StopCPUProfile()
 		return
+
+	case "heapjson":
+		var memStats runtime.MemStats
+		runtime.ReadMemStats(&memStats)
+
+		data := map[string]interface{}{
+			"alloc":           memStats.Alloc,
+			"total_alloc":     memStats.TotalAlloc,
+			"sys":             memStats.Sys,
+			"mallocs":         memStats.Mallocs,
+			"frees":           memStats.Frees,
+			"heap_alloc":      memStats.HeapAlloc,
+			"heap_sys":        memStats.HeapSys,
+			"heap_idle":       memStats.HeapIdle,
+			"heap_inuse":      memStats.HeapInuse,
+			"heap_objects":    memStats.HeapObjects,
+			"num_gc":          memStats.NumGC,
+			"next_gc":         memStats.NextGC,
+			"gc_cpu_fraction": memStats.GCCPUFraction,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(data)
+		return
 	}
 
-	// Another profiles (heap, goroutine, etc.)
+	// Otro perfil (heap, goroutine, threadcreate, block, mutex, etc.)
 	p := pprof.Lookup(profileName)
 	if p == nil {
 		http.Error(w, "Perfil no encontrado", http.StatusNotFound)

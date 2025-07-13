@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Heap y Alloc</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.0"></script>
+<style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px; border: 1px solid #ccc; text-align: left; }
+    th { background-color: #f4f4f4; }
+    .ok { color: green; }
+    .warn { color: orange; }
+    .bad { color: red; }
+</style>
+</head>
+<body>
+<h1>Métricas de Heap y Alloc</h1>
+<table id="metrics">
+    <thead>
+        <tr>
+            <th>Métrica</th>
+            <th>Descripción</th>
+            <th>Valor actual</th>
+            <th>Valor de referencia</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<script>
+const referencia = {
+    alloc:            { desc: "Memoria que el programa está actualmente usando", max: 100 * 1024 * 1024, ref: "< 100MB" },
+    total_alloc:      { desc: "Total de memoria asignada", ref: "depende de la carga" },
+    sys:              { desc: "Memoria total obtenida del sistema operativo", ref: "≈ HeapSys" },
+    mallocs:          { desc: "Número de objetos que el programa ha creado en el heap", ref: "N/A" },
+    frees:            { desc: "Número de objetos que el programa ha liberado.", ref: "N/A" },
+    heap_alloc:       { max: 50 * 1024 * 1024, desc: "Memoria del heap en uso actualmente", ref: "< 50MB" },
+    heap_sys:         { desc: "Memoria total reservada del sistema operativo para el heap", ref: "≈ 2-3x HeapAlloc" },
+    heap_idle:        { desc: "Memoria del heap que no está en uso y se puede devolver al SO", ref: "> HeapInuse" },
+    heap_inuse:       { desc: "Memoria del heap que contiene objetos activos", ref: "≈ HeapAlloc" },
+    heap_objects:     { desc: "Cantidad de objetos vivos en el heap", ref: "estable" },
+    num_gc:           { desc: "Número total de veces que se ha ejecutado el GC", ref: ">0, razonable" },
+    next_gc:          { desc: "El tamaño del heap al que el GC intentará ejecutarse la próxima vez", ref: "> HeapAlloc" },
+    gc_cpu_fraction:  { max: 0.05, desc: "Fracción de tiempo de CPU que el GC ha usado", ref: "< 0.05" },
+};
+
+fetch('/profile/heapjson')
+    .then(response => response.json())
+    .then(data => {
+        const tbody = document.querySelector("#metrics tbody");
+        for (const [key, value] of Object.entries(data)) {
+            const row = document.createElement("tr");
+
+            const metric = document.createElement("td");
+            metric.textContent = key;
+            row.appendChild(metric);
+
+            const desc = document.createElement("td");
+            desc.textContent = referencia[key]?.desc || "";
+            row.appendChild(desc);
+
+            const actual = document.createElement("td");
+            actual.textContent = value.toLocaleString();
+            row.appendChild(actual);
+
+            
+
+            const ref = document.createElement("td");
+            ref.textContent = referencia[key]?.ref || "";
+            if (referencia[key]?.max !== undefined) {
+                if (value <= referencia[key].max) {
+                    ref.classList.add("ok");
+                } else {
+                    ref.classList.add("bad");
+                }
+            }
+            row.appendChild(ref);
+
+            tbody.appendChild(row);
+        }
+    });
+</script>
+
+<h2>Fragmentación del heap</h2>
+<canvas id="chart" width="800" height="400"></canvas>
+<script>
+const ctx1 = document.getElementById('chart').getContext('2d');
+
+const chart1 = new Chart(ctx1, {
+    type: 'line',
+    data: {
+        datasets: [
+            {
+                label: 'Fragmentation (%)',
+                yAxisID: 'y2',
+                borderColor: 'red',
+                data: [],
+                fill: false
+            },
+            {
+                label: 'HeapSys (bytes)',
+                yAxisID: 'y',
+                borderColor: 'blue',
+                data: [],
+                fill: false
+            },
+            {
+                label: 'HeapInuse (bytes)',
+                yAxisID: 'y',
+                borderColor: 'green',
+                data: [],
+                fill: false
+            }
+        ]
+    },
+    options: {
+        parsing: false,
+        scales: {
+            x: {
+                type: 'time',
+                time: { unit: 'second', tooltipFormat: 'HH:mm:ss' },
+                title: { text: 'Time', display: true }
+            },
+            y: {
+                type: 'linear',
+                position: 'left',
+                title: { text: 'Bytes', display: true }
+            },
+            y2: {
+                type: 'linear',
+                position: 'right',
+                title: { text: 'Fragmentation %', display: true },
+                min: 0,
+                max: 100
+            }
+        }
+    }
+});
+
+async function update() {
+    const res = await fetch('/profiles/fragmentation');
+    const data = await res.json();
+
+    chart1.data.labels = data.map(d => new Date(d.timestamp));
+    chart1.data.datasets[0].data = data.map(d => ({x: new Date(d.timestamp), y: d.fragmentation}));
+    chart1.data.datasets[1].data = data.map(d => ({x: new Date(d.timestamp), y: d.heap_sys}));
+    chart1.data.datasets[2].data = data.map(d => ({x: new Date(d.timestamp), y: d.heap_inuse}));
+
+    chart1.update();
+}
+
+setInterval(update, 2000);
+</script>
+
+<h2>MemStats en tiempo real</h2>
+<canvas id="memChart" width="800" height="400"></canvas>
+<script>
+const ctx = document.getElementById('memChart').getContext('2d');
+const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [],
+        datasets: [{
+            label: 'HeapAlloc (bytes)',
+            borderColor: 'rgb(75, 192, 192)',
+            data: [],
+        }]
+    },
+    options: {
+        animation: false,
+        scales: {
+            x: { title: { display: true, text: 'Tiempo' }},
+            y: { title: { display: true, text: 'HeapAlloc (bytes)' }}
+        }
+    }
+});
+
+async function fetchData() {
+    const res = await fetch('/profiles/graph');
+    const samples = await res.json();
+
+    chart.data.labels = samples.map(s => new Date(s.timestamp).toLocaleTimeString());
+    chart.data.datasets[0].data = samples.map(s => s.data.heap_alloc);
+    chart.update();
+}
+
+setInterval(fetchData, 2000);
+</script>
+</body>
+</html>
