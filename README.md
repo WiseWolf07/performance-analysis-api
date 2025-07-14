@@ -18,4 +18,4 @@ Además de gráficas en tiempo real de **Fragmentación del heap**
 
 <img width="1896" height="914" alt="image (3)" src="https://github.com/user-attachments/assets/bb89ae8f-8a08-4e07-a664-9fb51b83b8b9" />
 
-A través de la ruta **http://localhost:8080/profile/{type}** puede acceder a todas las funciones de profiling(heap, alloc, mutex, block, threadcreation, cpu, profile) pero en datos crudos.
+A través de la ruta **http://localhost:8080/profile/{type}** puede acceder a todas las funciones de profiling(heap, alloc, mutex, block, threadcreation, cpu, profile).
